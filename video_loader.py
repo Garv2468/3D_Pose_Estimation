@@ -15,10 +15,13 @@ def load_video(path):
     return cap, metadata
     
 def frame_generator(cap):
+    cv2.namedWindow("Video Playback", cv2.WINDOW_NORMAL)
     while cap.isOpened():
         ret, frame = cap.read()
-        if not ret :
+        if not ret:
+            print("Read Failed.")
             break
+
         yield frame
 
 def release_video(cap):
