@@ -4,7 +4,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import video_loader as vl
 
-MODEL_PATH = "pose_landmarker_heavy.task"
+MODEL_PATH = "/home/garv/Python/Open_cv/pose_landmarker_heavy.task"
 
 def init_detector():
     base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
@@ -21,7 +21,7 @@ def init_detector():
 def detect_video(cap, detector, fps):
     keypoints_sequence = []
     frame_number = 0
-
+    d = {}
     for frame in vl.frame_generator(cap):
         timestamp_ms = int(frame_number * 1000 / fps)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -31,10 +31,18 @@ def detect_video(cap, detector, fps):
         if not result.pose_world_landmarks:
             keypoints_sequence.append(None)
         else:
-            keypoints_sequence.append(result.pose_world_landmarks[0])
+            frame_landmark = []
+            for i in range(33):
+                d = {
+                'x' : result.pose_world_landmarks[0][i].x,
+                'y' : result.pose_world_landmarks[0][i].y,
+                'z' : result.pose_world_landmarks[0][i].z,
+                'visibility' : result.pose_world_landmarks[0][i].visibility
+                }
+                frame_landmark.append(d)
+            keypoints_sequence.append(frame_landmark)
 
         frame_number += 1
-        
-    return keypoints_sequence # [[(), (), () ...], [(), (), () ...]] frame -> (x, y, z, visibility, presence, name)
-    
+
+    return keypoints_sequence # [[{}, {}, {}, ...], [{}, {}, {}, ...]] frame -> {x, y, z, visibility}
 
