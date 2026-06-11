@@ -4,7 +4,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import video_loader as vl
 
-MODEL_PATH = "/home/garv/Python/Open_cv/pose_landmarker_heavy.task"
+MODEL_PATH = "pose_landmarker_heavy.task"
 
 def init_detector():
     base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
@@ -34,5 +34,7 @@ def detect_video(cap, detector, fps):
             keypoints_sequence.append(result.pose_world_landmarks[0])
 
         frame_number += 1
+        
+    return keypoints_sequence # [[(), (), () ...], [(), (), () ...]] frame -> (x, y, z, visibility, presence, name)
+    
 
-    return keypoints_sequence
