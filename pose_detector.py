@@ -4,7 +4,7 @@ from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from video_loader import VideoLoader
 
-JOINTS = [
+POINTS = [
     "NOSE", "LEFT_EYE_INNER", "LEFT_EYE", "LEFT_EYE_OUTER", 
     "RIGHT_EYE_INNER", "RIGHT_EYE", "RIGHT_EYE_OUTER", 
     "LEFT_EAR", "RIGHT_EAR", "MOUTH_LEFT", "MOUTH_RIGHT",
@@ -17,7 +17,7 @@ JOINTS = [
 ]
 
 class PoseDetector:
-    def __init__(self, path: str, detection_confidence: float = 0.75, tracking_confidence: float = 0.75):
+    def __init__(self, path: str, detection_confidence: float = 0.75, tracking_confidence: float = 0.75, threshold_visibility: float = 0.75):
         base_options = python.BaseOptions(model_asset_path=path)
         options = vision.PoseLandmarkerOptions(
             base_options=base_options,
@@ -27,9 +27,13 @@ class PoseDetector:
             min_pose_detection_confidence=detection_confidence,
             min_tracking_confidence=tracking_confidence
         )
+        self.threshold_visibility = threshold_visibility
         self.detector = vision.PoseLandmarker.create_from_options(options)
+        self.key_points = []
 
     def generate_keypoints(self, loader: VideoLoader):
+        self.key_points.clear()
+        
         frameNumber = 0
         fps = loader.get_metadata()['fps']
 
@@ -45,18 +49,31 @@ class PoseDetector:
             result = self.detector.detect_for_video(mpImg, timestampMS)
 
             if not result.pose_world_landmarks:
-                yield None
+                self.key_points.append(None)
             else:
                 person = {}
 
                 for i, landmark in enumerate(result.pose_world_landmarks[0]):
-                    person[JOINTS[i]] = {
-                    'x' : landmark.x,
-                    'y' : landmark.y,
-                    'z' : landmark.z,
-                    'visibility' : landmark.visibility
-                    }
+                    if landmark.visibility >= self.threshold_visibility:
+                        person[POINTS[i]] = {
+                            'x': landmark.x,
+                            'y': landmark.y,
+                            'z': landmark.z,
+                            'visibility': landmark.visibility
+                        }
+                    else:
+                        person[POINTS[i]] = {
+                            'x': None,
+                            'y': None,
+                            'z': None,
+                            'visibility': None
+                        }
                     
-                yield person
+                self.key_points.append(person)
 
             frameNumber += 1
+
+    def get_keypoints(self) -> list:
+        if (len(self.key_points) == 0):
+            raise ValueError("KeyPoints not found. Run generate_keypoints() first.")
+        return self.key_points
