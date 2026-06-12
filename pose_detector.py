@@ -2,47 +2,61 @@ import cv2
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-import video_loader as vl
+from video_loader import VideoLoader
 
-MODEL_PATH = "/home/garv/Python/Open_cv/pose_landmarker_heavy.task"
+JOINTS = [
+    "NOSE", "LEFT_EYE_INNER", "LEFT_EYE", "LEFT_EYE_OUTER", 
+    "RIGHT_EYE_INNER", "RIGHT_EYE", "RIGHT_EYE_OUTER", 
+    "LEFT_EAR", "RIGHT_EAR", "MOUTH_LEFT", "MOUTH_RIGHT",
+    "LEFT_SHOULDER", "RIGHT_SHOULDER", "LEFT_ELBOW", "RIGHT_ELBOW", 
+    "LEFT_WRIST", "RIGHT_WRIST", "LEFT_PINKY", "RIGHT_PINKY", 
+    "LEFT_INDEX", "RIGHT_INDEX", "LEFT_THUMB", "RIGHT_THUMB",
+    "LEFT_HIP", "RIGHT_HIP", "LEFT_KNEE", "RIGHT_KNEE", 
+    "LEFT_ANKLE", "RIGHT_ANKLE", "LEFT_HEEL", "RIGHT_HEEL", 
+    "LEFT_FOOT_INDEX", "RIGHT_FOOT_INDEX"
+]
 
-def init_detector():
-    base_options = python.BaseOptions(model_asset_path=MODEL_PATH)
-    options = vision.PoseLandmarkerOptions(
-        base_options=base_options,
-        output_segmentation_masks=False,
-        running_mode=vision.RunningMode.VIDEO,
-        num_poses=1,
-        min_pose_detection_confidence=0.5,
-        min_tracking_confidence=0.5
-    )
-    return vision.PoseLandmarker.create_from_options(options)
+class PoseDetector:
+    def __init__(self, path: str, detection_confidence: float = 0.75, tracking_confidence: float = 0.75):
+        base_options = python.BaseOptions(model_asset_path=path)
+        options = vision.PoseLandmarkerOptions(
+            base_options=base_options,
+            output_segmentation_masks=False,
+            running_mode=vision.RunningMode.VIDEO,
+            num_poses=1,
+            min_pose_detection_confidence=detection_confidence,
+            min_tracking_confidence=tracking_confidence
+        )
+        self.detector = vision.PoseLandmarker.create_from_options(options)
 
-def detect_video(cap, detector, fps):
-    keypoints_sequence = []
-    frame_number = 0
-    d = {}
-    for frame in vl.frame_generator(cap):
-        timestamp_ms = int(frame_number * 1000 / fps)
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-        result = detector.detect_for_video(mp_image, timestamp_ms)
+    def generate_keypoints(self, loader: VideoLoader):
+        frameNumber = 0
+        fps = loader.get_metadata()['fps']
 
-        if not result.pose_world_landmarks:
-            keypoints_sequence.append(None)
-        else:
-            frame_landmark = []
-            for i in range(33):
-                d = {
-                'x' : result.pose_world_landmarks[0][i].x,
-                'y' : result.pose_world_landmarks[0][i].y,
-                'z' : result.pose_world_landmarks[0][i].z,
-                'visibility' : result.pose_world_landmarks[0][i].visibility
-                }
-                frame_landmark.append(d)
-            keypoints_sequence.append(frame_landmark)
+        while True:
+            success, frame = loader.read_frame()
+            if not success:
+                break
 
-        frame_number += 1
+            timestampMS = int(frameNumber * 1000 / fps)
+            RGBFrame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            mpImg = mp.Image(image_format=mp.ImageFormat.SRGB, data=RGBFrame)
 
-    return keypoints_sequence # [[{}, {}, {}, ...], [{}, {}, {}, ...]] frame -> {x, y, z, visibility}
+            result = self.detector.detect_for_video(mpImg, timestampMS)
 
+            if not result.pose_world_landmarks:
+                yield None
+            else:
+                person = {}
+
+                for i, landmark in enumerate(result.pose_world_landmarks[0]):
+                    person[JOINTS[i]] = {
+                    'x' : landmark.x,
+                    'y' : landmark.y,
+                    'z' : landmark.z,
+                    'visibility' : landmark.visibility
+                    }
+                    
+                yield person
+
+            frameNumber += 1
