@@ -5,3 +5,11 @@ __pycache__/
 
 .code-runner/
 tempCodeRunnerFile*
+
+venv/
+env/
+.venv/
+
+.vscode/
+.idea/
+.DS_Store
