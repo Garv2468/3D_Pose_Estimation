@@ -51,25 +51,25 @@ class PoseDetector:
             if not result.pose_world_landmarks:
                 self.key_points.append(None)
             else:
-                person = {}
+                frame = {}
 
                 for i, landmark in enumerate(result.pose_world_landmarks[0]):
                     if landmark.visibility >= self.threshold_visibility:
-                        person[POINTS[i]] = {
+                        frame[POINTS[i]] = {
                             'x': landmark.x,
                             'y': landmark.y,
                             'z': landmark.z,
                             'visibility': landmark.visibility
                         }
                     else:
-                        person[POINTS[i]] = {
+                        frame[POINTS[i]] = {
                             'x': None,
                             'y': None,
                             'z': None,
                             'visibility': None
                         }
                     
-                self.key_points.append(person)
+                self.key_points.append(frame)
 
             frameNumber += 1
 
