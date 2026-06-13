@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from pose_detector import POINTS 
 
 def reconstruct_keypoints(interpolated_df: pd.DataFrame) -> list:
     flat_records = interpolated_df.to_dict(orient='records')
@@ -9,6 +10,7 @@ def reconstruct_keypoints(interpolated_df: pd.DataFrame) -> list:
         nested_frame = {}
         for key, val in frame.items():
             joint, parameter = str(key).split('.')
+            if joint not in nested_frame:   
             if joint not in nested_frame:   
                 nested_frame[joint] = {}
             nested_frame[joint][parameter] = val
