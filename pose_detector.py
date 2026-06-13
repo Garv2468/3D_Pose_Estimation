@@ -75,11 +75,11 @@ class PoseDetector:
                     
             frames.append(frame_data)
             frameNumber += 1
-        
+            
         loader.release()
         self.df = pd.DataFrame(frames)
 
     def get_keypoints(self) -> pd.DataFrame:
         if self.df.empty:
             raise ValueError("KeyPoints not found. Run generate_dataframe() first.")
-        return self.df
+        return self.df 

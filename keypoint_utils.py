@@ -11,7 +11,6 @@ def reconstruct_keypoints(interpolated_df: pd.DataFrame) -> list:
         for key, val in frame.items():
             joint, parameter = str(key).split('.')
             if joint not in nested_frame:   
-            if joint not in nested_frame:   
                 nested_frame[joint] = {}
             nested_frame[joint][parameter] = val
             
