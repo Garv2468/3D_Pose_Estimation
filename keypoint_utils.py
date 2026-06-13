@@ -21,8 +21,8 @@ def reconstruct_keypoints(interpolated_df: pd.DataFrame) -> list:
 def interpolate_keypoints(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         raise ValueError("Provided DataFrame is empty.")
-    
-    return df.interpolate(method='linear', limit_direction='both')
+    x = df.drop(columns=[col for col in df.columns if 'visibility' in col])
+    return x.interpolate(method='linear', limit_direction='both')
 
 class CalculateJointAngles:
     def __init__(self, df: pd.DataFrame):
@@ -39,6 +39,7 @@ class CalculateJointAngles:
             "LEFT_KNEE": ('LEFT_HIP', 'LEFT_KNEE', 'LEFT_ANKLE'),
             "RIGHT_KNEE": ('RIGHT_HIP', 'RIGHT_KNEE', 'RIGHT_ANKLE'),
             }
+        
         self.DOF3_angles = {
             "LEFT_SHOULDER_PITCH": ('LEFT_SHOULDER', 'LEFT_ELBOW', 'sagittal'),
             "LEFT_SHOULDER_ROLL": ('LEFT_SHOULDER', 'LEFT_ELBOW', 'coronal'),
@@ -158,3 +159,5 @@ class CalculateJointAngles:
         self.angles['PELVIS_ROOT_Z'] = self.df['PELVIS.z']
 
         return self.angles
+
+
