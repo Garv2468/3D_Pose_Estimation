@@ -1,4 +1,6 @@
 import cv2
+import numpy as np
+import pandas as pd
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -29,10 +31,11 @@ class PoseDetector:
         )
         self.threshold_visibility = threshold_visibility
         self.detector = vision.PoseLandmarker.create_from_options(options)
-        self.key_points = []
 
-    def generate_keypoints(self, loader: VideoLoader):
-        self.key_points.clear()
+        self.df = pd.DataFrame()
+
+    def generate_dataframe(self, loader: VideoLoader):
+        frames = []
         
         frameNumber = 0
         fps = loader.get_metadata()['fps']
@@ -47,33 +50,36 @@ class PoseDetector:
             mpImg = mp.Image(image_format=mp.ImageFormat.SRGB, data=RGBFrame)
 
             result = self.detector.detect_for_video(mpImg, timestampMS)
+            frame_data = {}
 
             if not result.pose_world_landmarks:
-                self.key_points.append(None)
+                for point in POINTS:
+                    frame_data[f'{point}.x'] = np.nan
+                    frame_data[f'{point}.y'] = np.nan
+                    frame_data[f'{point}.z'] = np.nan
+                    frame_data[f'{point}.visibility'] = np.nan
             else:
-                person = {}
-
                 for i, landmark in enumerate(result.pose_world_landmarks[0]):
+                    point_name = POINTS[i]
                     if landmark.visibility >= self.threshold_visibility:
-                        person[POINTS[i]] = {
-                            'x': landmark.x,
-                            'y': landmark.y,
-                            'z': landmark.z,
-                            'visibility': landmark.visibility
-                        }
+                        frame_data[f'{point_name}.x'] = landmark.x
+                        frame_data[f'{point_name}.y'] = landmark.y
+                        frame_data[f'{point_name}.z'] = landmark.z
+                        frame_data[f'{point_name}.visibility'] = landmark.visibility
                     else:
-                        person[POINTS[i]] = {
-                            'x': None,
-                            'y': None,
-                            'z': None,
-                            'visibility': None
-                        }
+                        # Use np.nan instead of None for seamless Pandas interpolation
+                        frame_data[f'{point_name}.x'] = np.nan
+                        frame_data[f'{point_name}.y'] = np.nan
+                        frame_data[f'{point_name}.z'] = np.nan
+                        frame_data[f'{point_name}.visibility'] = np.nan
                     
-                self.key_points.append(person)
-
+            frames.append(frame_data)
             frameNumber += 1
+        
+        loader.release()
+        self.df = pd.DataFrame(frames)
 
-    def get_keypoints(self) -> list:
-        if (len(self.key_points) == 0):
-            raise ValueError("KeyPoints not found. Run generate_keypoints() first.")
-        return self.key_points
+    def get_keypoints(self) -> pd.DataFrame:
+        if self.df.empty:
+            raise ValueError("KeyPoints not found. Run generate_dataframe() first.")
+        return self.df
