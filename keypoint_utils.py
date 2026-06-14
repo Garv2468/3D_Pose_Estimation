@@ -159,5 +159,54 @@ class CalculateJointAngles:
         self.angles['PELVIS_ROOT_Z'] = self.df['PELVIS.z']
 
         return self.angles
+    
+class CalclualteBoneLength:
+    def __init__(self, df: pd.DataFrame):
+        self.df = df.copy()
+        self.bonelength = pd.DataFrame()
 
+        self._make_virtual_joints()
 
+        self.bones = {
+            'NECK_BONE' : ('NECK_BASE', 'NOSE'),
+            'SPINE' : ('NECK_BASE', 'PELVIS'),
+            'COLLAR_BONE' : ('LEFT_SHOULDER', 'RIGHT_SHOULDER'),
+            'LEFT_HUMERUS' : ('LEFT_SHOULDER', 'LEFT_ELBOW'),
+            'RIGHT_HUMERUS' : ('RIGHT_SHOULDER', 'RIGHT_ELBOW'),
+            'LEFT_ULNA' : ('LEFT_ELBOW', 'LEFT_WRIST'),
+            'RIGHT_ULNA' : ('RIGHT_ELBOW', 'RIGHT_WRIST'),
+            'RIGHT_FEMUR' : ('RIGHT_HIP', 'RIGHT_KNEE'),
+            'LEFT_FEMUR' : ('LEFT_HIP', 'LEFT_KNEE'),
+            'LEFT_TIBIA' : ('LEFT_KNEE', 'LEFT_ANKLE'),
+            'RIGHT_TIBIA' : ('RIGHT_KNEE', 'RIGHT_ANKLE')
+        }
+
+        self.compute_bone_length(self.df)
+
+    def _make_virtual_joints(self):
+        self.df['PELVIS.x'] = (self.df['LEFT_HIP.x'] + self.df['RIGHT_HIP.x']) / 2.0
+        self.df['PELVIS.y'] = (self.df['LEFT_HIP.y'] + self.df['RIGHT_HIP.y']) / 2.0
+        self.df['PELVIS.z'] = (self.df['LEFT_HIP.z'] + self.df['RIGHT_HIP.z']) / 2.0
+
+        self.df['NECK_BASE.x'] = (self.df['LEFT_SHOULDER.x'] + self.df['RIGHT_SHOULDER.x']) / 2.0
+        self.df['NECK_BASE.y'] = (self.df['LEFT_SHOULDER.y'] + self.df['RIGHT_SHOULDER.y']) / 2.0
+        self.df['NECK_BASE.z'] = (self.df['LEFT_SHOULDER.z'] + self.df['RIGHT_SHOULDER.z']) / 2.0
+
+    def _bone_length(self, df: pd.DataFrame, a: str, b: str):
+        A = df[[f'{a}.x', f'{a}.y', f'{a}.z']].values
+        B = df[[f'{b}.x', f'{b}.y', f'{b}.z']].values
+
+        u = A-B
+        u_mod = np.linalg.norm(u, axis=1)
+
+        return u_mod
+
+    def compute_bone_length(self, df: pd.DataFrame):
+        for bone_name in self.bones:
+            self.bonelength[f'{bone_name}'] = self._bone_length(df, self.bones[bone_name][0], self.bones[bone_name][1]) 
+    
+    def get_bone_lengths(self):
+        if (self.bonelength.empty):
+            raise ValueError("Lengths not found. Calculate the lengths first.")
+
+        return self.bonelength
