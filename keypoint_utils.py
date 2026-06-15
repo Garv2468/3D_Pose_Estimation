@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from pose_detector import POINTS 
+from constants import DOF1_angles, DOF3_angles, BONES
 
 def reconstruct_keypoints(interpolated_df: pd.DataFrame) -> list:
     flat_records = interpolated_df.to_dict(orient='records')
@@ -24,53 +24,15 @@ def interpolate_keypoints(df: pd.DataFrame) -> pd.DataFrame:
     x = df.drop(columns=[col for col in df.columns if 'visibility' in col])
     return x.interpolate(method='linear', limit_direction='both')
 
-class CalculateJointAngles:
+
+class Calculations:
     def __init__(self, df: pd.DataFrame):
         self.df = df.copy()
-        self.angles = pd.DataFrame()
-
+        
         #joints required for torso and head movements (not tracked by mediapipe)
         self._make_virtual_joints()
 
-        #DOF is degree of freedom
-        self.DOF1_angles = {
-            "LEFT_ELBOW": ('LEFT_SHOULDER', 'LEFT_ELBOW', 'LEFT_WRIST'),
-            "RIGHT_ELBOW": ('RIGHT_SHOULDER', 'RIGHT_ELBOW', 'RIGHT_WRIST'),
-            "LEFT_KNEE": ('LEFT_HIP', 'LEFT_KNEE', 'LEFT_ANKLE'),
-            "RIGHT_KNEE": ('RIGHT_HIP', 'RIGHT_KNEE', 'RIGHT_ANKLE'),
-            }
-        
-        self.DOF3_angles = {
-            "LEFT_SHOULDER_PITCH": ('LEFT_SHOULDER', 'LEFT_ELBOW', 'sagittal'),
-            "LEFT_SHOULDER_ROLL": ('LEFT_SHOULDER', 'LEFT_ELBOW', 'coronal'),
-            "RIGHT_SHOULDER_PITCH": ('RIGHT_SHOULDER', 'RIGHT_ELBOW', 'sagittal'),
-            "RIGHT_SHOULDER_ROLL": ('RIGHT_SHOULDER', 'RIGHT_ELBOW', 'coronal'),
-
-            "LEFT_HIP_PITCH": ('LEFT_HIP', 'LEFT_KNEE', 'sagittal'),
-            "LEFT_HIP_ROLL": ('LEFT_HIP', 'LEFT_KNEE', 'coronal'),
-            "RIGHT_HIP_PITCH": ('RIGHT_HIP', 'RIGHT_KNEE', 'sagittal'),
-            "RIGHT_HIP_ROLL": ('RIGHT_HIP', 'RIGHT_KNEE', 'coronal'),
-
-            "LEFT_FOOT_PITCH": ('LEFT_HEEL', 'LEFT_FOOT_INDEX', 'sagittal'),
-            "RIGHT_FOOT_PITCH": ('RIGHT_HEEL', 'RIGHT_FOOT_INDEX', 'sagittal'),
-
-            "SPINE_PITCH": ('PELVIS', 'NECK_BASE', 'sagittal'),
-            "SPINE_ROLL": ('PELVIS', 'NECK_BASE', 'coronal'),
-            "SPINE_YAW": ('PELVIS', 'NECK_BASE', 'transverse'),
-
-            "NECK_PITCH": ('NECK_BASE', 'NOSE', 'sagittal'),
-            "NECK_ROLL": ('NECK_BASE', 'NOSE', 'coronal'),
-            "NECK_YAW": ('NECK_BASE', 'NOSE', 'transverse')
-        }
-
-        #these are the global angles (wrt the 3d plane)
-        self.calculate_DOF1_angles()
-        self.calculate_DOF3_angles()
-
-        #local angles means with respect to other angles
-        self.calculate_local_angles() 
-
-    def _make_virtual_joints(self):
+    def _make_virtual_joints(self) -> None:
         self.df['PELVIS.x'] = (self.df['LEFT_HIP.x'] + self.df['RIGHT_HIP.x']) / 2.0
         self.df['PELVIS.y'] = (self.df['LEFT_HIP.y'] + self.df['RIGHT_HIP.y']) / 2.0
         self.df['PELVIS.z'] = (self.df['LEFT_HIP.z'] + self.df['RIGHT_HIP.z']) / 2.0
@@ -78,6 +40,20 @@ class CalculateJointAngles:
         self.df['NECK_BASE.x'] = (self.df['LEFT_SHOULDER.x'] + self.df['RIGHT_SHOULDER.x']) / 2.0
         self.df['NECK_BASE.y'] = (self.df['LEFT_SHOULDER.y'] + self.df['RIGHT_SHOULDER.y']) / 2.0
         self.df['NECK_BASE.z'] = (self.df['LEFT_SHOULDER.z'] + self.df['RIGHT_SHOULDER.z']) / 2.0
+
+class CalculateJointAngles(Calculations):
+    def __init__(self, df: pd.DataFrame):
+        super().__init__(df)
+
+        self.angles = pd.DataFrame()
+
+        #DOF is degree of freedom
+        #these are the global angles (wrt the 3d plane)
+        self.calculate_DOF1_angles()
+        self.calculate_DOF3_angles()
+
+        #local angles means with respect to other angles
+        self.calculate_local_angles() 
 
     def _DOF1_angle(self, df: pd.DataFrame, a: str, b: str, c: str) -> np.ndarray:
         A = df[[f'{a}.x', f'{a}.y', f'{a}.z']].values
@@ -127,11 +103,11 @@ class CalculateJointAngles:
         return normalized_local
     
     def calculate_DOF1_angles(self):
-        for joint_name, (pt_a, pt_b, pt_c) in self.DOF1_angles.items():
+        for joint_name, (pt_a, pt_b, pt_c) in DOF1_angles.items():
             self.angles[f'{joint_name}_ANGLE'] = self._DOF1_angle(self.df, pt_a, pt_b, pt_c)
 
     def calculate_DOF3_angles(self) -> None:
-        for joint_name, (pt_a, pt_b, plane) in self.DOF3_angles.items():
+        for joint_name, (pt_a, pt_b, plane) in DOF3_angles.items():
             self.angles[f'{joint_name}_GLOBAL'] = self._DOF3_angle(self.df, pt_a, pt_b, plane=plane)
 
     def calculate_local_angles(self) -> None:
@@ -160,37 +136,13 @@ class CalculateJointAngles:
 
         return self.angles
     
-class CalclualteBoneLength:
+class CalculateBoneLength(Calculations):
     def __init__(self, df: pd.DataFrame):
-        self.df = df.copy()
+        super().__init__(df)
+
         self.bonelength = pd.DataFrame()
 
-        self._make_virtual_joints()
-
-        self.bones = {
-            'NECK_BONE' : ('NECK_BASE', 'NOSE'),
-            'SPINE' : ('NECK_BASE', 'PELVIS'),
-            'COLLAR_BONE' : ('LEFT_SHOULDER', 'RIGHT_SHOULDER'),
-            'LEFT_HUMERUS' : ('LEFT_SHOULDER', 'LEFT_ELBOW'),
-            'RIGHT_HUMERUS' : ('RIGHT_SHOULDER', 'RIGHT_ELBOW'),
-            'LEFT_ULNA' : ('LEFT_ELBOW', 'LEFT_WRIST'),
-            'RIGHT_ULNA' : ('RIGHT_ELBOW', 'RIGHT_WRIST'),
-            'RIGHT_FEMUR' : ('RIGHT_HIP', 'RIGHT_KNEE'),
-            'LEFT_FEMUR' : ('LEFT_HIP', 'LEFT_KNEE'),
-            'LEFT_TIBIA' : ('LEFT_KNEE', 'LEFT_ANKLE'),
-            'RIGHT_TIBIA' : ('RIGHT_KNEE', 'RIGHT_ANKLE')
-        }
-
         self.compute_bone_length(self.df)
-
-    def _make_virtual_joints(self):
-        self.df['PELVIS.x'] = (self.df['LEFT_HIP.x'] + self.df['RIGHT_HIP.x']) / 2.0
-        self.df['PELVIS.y'] = (self.df['LEFT_HIP.y'] + self.df['RIGHT_HIP.y']) / 2.0
-        self.df['PELVIS.z'] = (self.df['LEFT_HIP.z'] + self.df['RIGHT_HIP.z']) / 2.0
-
-        self.df['NECK_BASE.x'] = (self.df['LEFT_SHOULDER.x'] + self.df['RIGHT_SHOULDER.x']) / 2.0
-        self.df['NECK_BASE.y'] = (self.df['LEFT_SHOULDER.y'] + self.df['RIGHT_SHOULDER.y']) / 2.0
-        self.df['NECK_BASE.z'] = (self.df['LEFT_SHOULDER.z'] + self.df['RIGHT_SHOULDER.z']) / 2.0
 
     def _bone_length(self, df: pd.DataFrame, a: str, b: str):
         A = df[[f'{a}.x', f'{a}.y', f'{a}.z']].values
@@ -202,8 +154,8 @@ class CalclualteBoneLength:
         return u_mod
 
     def compute_bone_length(self, df: pd.DataFrame):
-        for bone_name in self.bones:
-            self.bonelength[f'{bone_name}'] = self._bone_length(df, self.bones[bone_name][0], self.bones[bone_name][1]) 
+        for bone_name in BONES:
+            self.bonelength[f'{bone_name}'] = self._bone_length(df, BONES[bone_name][0], BONES[bone_name][1]) 
     
     def get_bone_lengths(self):
         if (self.bonelength.empty):

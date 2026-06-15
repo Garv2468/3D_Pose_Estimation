@@ -5,18 +5,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from video_loader import VideoLoader
-
-POINTS = [
-    "NOSE", "LEFT_EYE_INNER", "LEFT_EYE", "LEFT_EYE_OUTER", 
-    "RIGHT_EYE_INNER", "RIGHT_EYE", "RIGHT_EYE_OUTER", 
-    "LEFT_EAR", "RIGHT_EAR", "MOUTH_LEFT", "MOUTH_RIGHT",
-    "LEFT_SHOULDER", "RIGHT_SHOULDER", "LEFT_ELBOW", "RIGHT_ELBOW", 
-    "LEFT_WRIST", "RIGHT_WRIST", "LEFT_PINKY", "RIGHT_PINKY", 
-    "LEFT_INDEX", "RIGHT_INDEX", "LEFT_THUMB", "RIGHT_THUMB",
-    "LEFT_HIP", "RIGHT_HIP", "LEFT_KNEE", "RIGHT_KNEE", 
-    "LEFT_ANKLE", "RIGHT_ANKLE", "LEFT_HEEL", "RIGHT_HEEL", 
-    "LEFT_FOOT_INDEX", "RIGHT_FOOT_INDEX"
-]
+from constants import MEDIAPIPE_POINTS
 
 class PoseDetector:
     def __init__(self, path: str, detection_confidence: float = 0.75, tracking_confidence: float = 0.75, threshold_visibility: float = 0.75):
@@ -53,21 +42,20 @@ class PoseDetector:
             frame_data = {}
 
             if not result.pose_world_landmarks:
-                for point in POINTS:
+                for point in MEDIAPIPE_POINTS:
                     frame_data[f'{point}.x'] = np.nan
                     frame_data[f'{point}.y'] = np.nan
                     frame_data[f'{point}.z'] = np.nan
                     frame_data[f'{point}.visibility'] = np.nan
             else:
                 for i, landmark in enumerate(result.pose_world_landmarks[0]):
-                    point_name = POINTS[i]
+                    point_name = MEDIAPIPE_POINTS[i]
                     if landmark.visibility >= self.threshold_visibility:
                         frame_data[f'{point_name}.x'] = landmark.x
                         frame_data[f'{point_name}.y'] = landmark.y
                         frame_data[f'{point_name}.z'] = landmark.z
                         frame_data[f'{point_name}.visibility'] = landmark.visibility
                     else:
-                        # Use np.nan instead of None for seamless Pandas interpolation
                         frame_data[f'{point_name}.x'] = np.nan
                         frame_data[f'{point_name}.y'] = np.nan
                         frame_data[f'{point_name}.z'] = np.nan
@@ -79,7 +67,7 @@ class PoseDetector:
         loader.release()
         self.df = pd.DataFrame(frames)
 
-    def get_keypoints(self) -> pd.DataFrame:
+    def get_keyMEDIAPIPE_POINTS(self) -> pd.DataFrame:
         if self.df.empty:
-            raise ValueError("KeyPoints not found. Run generate_dataframe() first.")
+            raise ValueError("KeyMEDIAPIPE_POINTS not found. Run generate_dataframe() first.")
         return self.df 
