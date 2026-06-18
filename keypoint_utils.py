@@ -21,8 +21,16 @@ def reconstruct_keypoints(interpolated_df: pd.DataFrame) -> list:
 def interpolate_keypoints(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         raise ValueError("Provided DataFrame is empty.")
-    x = df.drop(columns=[col for col in df.columns if 'visibility' in col])
-    return x.interpolate(method='linear', limit_direction='both')
+    
+    df_clean = df.copy()
+    coord_cols = [col for col in df_clean.columns if 'visibility' not in col]
+
+    df_clean[coord_cols] = df_clean[coord_cols].interpolate(method='linear', limit_direction='both').ffill().bfill()
+    
+    df_clean[coord_cols] = df_clean[coord_cols].fillna(0)
+    
+    return df_clean
+
 
 
 class Calculations:
@@ -55,35 +63,32 @@ class CalculateJointAngles(Calculations):
         #local angles means with respect to other angles
         self.calculate_local_angles() 
 
+        #maybe required later
+        self.angles['PELVIS_ROOT_X'] = self.df['PELVIS.x']
+        self.angles['PELVIS_ROOT_Y'] = self.df['PELVIS.y']
+        self.angles['PELVIS_ROOT_Z'] = self.df['PELVIS.z']
+
     def _DOF1_angle(self, df: pd.DataFrame, a: str, b: str, c: str) -> np.ndarray:
-        A = df[[f'{a}.x', f'{a}.y', f'{a}.z']].values
-        B = df[[f'{b}.x', f'{b}.y', f'{b}.z']].values
-        C = df[[f'{c}.x', f'{c}.y', f'{c}.z']].values
+        u_x = df[f'{a}.x'].values - df[f'{b}.x'].values
+        u_y = df[f'{a}.y'].values - df[f'{b}.y'].values
+        u_z = df[f'{a}.z'].values - df[f'{b}.z'].values
+        
+        v_x = df[f'{c}.x'].values - df[f'{b}.x'].values
+        v_y = df[f'{c}.y'].values - df[f'{b}.y'].values
+        v_z = df[f'{c}.z'].values - df[f'{b}.z'].values
 
-        u, v = A - B, C - B
+        dot = (u_x * v_x) + (u_y * v_y) + (u_z * v_z)
+        u_mod = np.sqrt(u_x**2 + u_y**2 + u_z**2)
+        v_mod = np.sqrt(v_x**2 + v_y**2 + v_z**2)
 
-        dot = np.sum(u * v, axis=1)
-        u_mod = np.linalg.norm(u, axis=1)
-        v_mod = np.linalg.norm(v, axis=1)
-
-        angle = np.arccos(np.clip(dot / (u_mod * v_mod), -1.0, 1.0))
-
+        angle = np.arccos(np.clip(dot / (u_mod * v_mod + 1e-6), -1.0, 1.0))
         return np.degrees(angle)
     
     def _DOF3_angle(self, df: pd.DataFrame, a: str, b: str, plane: str = "sagittal") -> np.ndarray:
-        ax = df[f'{a}.x'].to_numpy(dtype=np.float64)
-        ay = df[f'{a}.y'].to_numpy(dtype=np.float64)
-        az = df[f'{a}.z'].to_numpy(dtype=np.float64)
-        
-        bx = df[f'{b}.x'].to_numpy(dtype=np.float64)
-        by = df[f'{b}.y'].to_numpy(dtype=np.float64)
-        bz = df[f'{b}.z'].to_numpy(dtype=np.float64)
+        dx = df[f'{b}.x'].values - df[f'{a}.x'].values
+        dy = df[f'{b}.y'].values - df[f'{a}.y'].values
+        dz = df[f'{b}.z'].values - df[f'{a}.z'].values
 
-        dx = bx - ax
-        dy = by - ay
-        dz = bz - az
-
-        #three cross sections of a body
         if plane == 'sagittal':
             angles = np.arctan2(dy, dz)
         elif plane == 'coronal':
@@ -128,37 +133,26 @@ class CalculateJointAngles(Calculations):
     def get_angles(self) -> pd.DataFrame:
         if (self.angles.empty):
             raise ValueError("Angles not found. Calculate the angles first.")
-        
-        #maybe required later
-        self.angles['PELVIS_ROOT_X'] = self.df['PELVIS.x']
-        self.angles['PELVIS_ROOT_Y'] = self.df['PELVIS.y']
-        self.angles['PELVIS_ROOT_Z'] = self.df['PELVIS.z']
-
         return self.angles
     
 class CalculateBoneLength(Calculations):
     def __init__(self, df: pd.DataFrame):
         super().__init__(df)
-
         self.bonelength = pd.DataFrame()
-
         self.compute_bone_length(self.df)
 
     def _bone_length(self, df: pd.DataFrame, a: str, b: str):
-        A = df[[f'{a}.x', f'{a}.y', f'{a}.z']].values
-        B = df[[f'{b}.x', f'{b}.y', f'{b}.z']].values
+        dx = df[f'{a}.x'].values - df[f'{b}.x'].values
+        dy = df[f'{a}.y'].values - df[f'{b}.y'].values
+        dz = df[f'{a}.z'].values - df[f'{b}.z'].values
 
-        u = A-B
-        u_mod = np.linalg.norm(u, axis=1)
-
-        return u_mod
+        return np.sqrt(dx**2 + dy**2 + dz**2)
 
     def compute_bone_length(self, df: pd.DataFrame):
-        for bone_name in BONES:
-            self.bonelength[f'{bone_name}'] = self._bone_length(df, BONES[bone_name][0], BONES[bone_name][1]) 
-    
+        for bone_name, (joint1, joint2) in BONES.items():
+            self.bonelength[f'{bone_name}'] = self._bone_length(df, joint1, joint2)
+
     def get_bone_lengths(self):
         if (self.bonelength.empty):
             raise ValueError("Lengths not found. Calculate the lengths first.")
-
         return self.bonelength

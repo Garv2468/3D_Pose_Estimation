@@ -5,7 +5,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from video_loader import VideoLoader
-from constants import MEDIAPIPE_POINTS
+from constants import TARGET_POINTS_3D
 
 class PoseDetector:
     def __init__(self, path: str, detection_confidence: float = 0.75, tracking_confidence: float = 0.75, threshold_visibility: float = 0.75):
@@ -21,10 +21,18 @@ class PoseDetector:
         self.threshold_visibility = threshold_visibility
         self.detector = vision.PoseLandmarker.create_from_options(options)
 
-        self.df = pd.DataFrame()
+        self.df_2d = pd.DataFrame()
+        self.df_3d = pd.DataFrame()
+
+        self.target_points_2d = {
+            "NOSE": 0, 
+            "LEFT_SHOULDER": 11, "RIGHT_SHOULDER": 12,
+            "LEFT_HIP": 23, "RIGHT_HIP": 24
+        }
 
     def generate_dataframe(self, loader: VideoLoader):
-        frames = []
+        frames_3d = []
+        frames_2d = []
         
         frameNumber = 0
         fps = loader.get_metadata()['fps']
@@ -39,35 +47,46 @@ class PoseDetector:
             mpImg = mp.Image(image_format=mp.ImageFormat.SRGB, data=RGBFrame)
 
             result = self.detector.detect_for_video(mpImg, timestampMS)
-            frame_data = {}
+            frame_data_3d = {}
+            frame_data_2d = {}
 
             if not result.pose_world_landmarks:
-                for point in MEDIAPIPE_POINTS:
-                    frame_data[f'{point}.x'] = np.nan
-                    frame_data[f'{point}.y'] = np.nan
-                    frame_data[f'{point}.z'] = np.nan
-                    frame_data[f'{point}.visibility'] = np.nan
+                for point_name in TARGET_POINTS_3D.values():
+                    frame_data_3d.update({f'{point_name}.x': np.nan, f'{point_name}.y': np.nan, f'{point_name}.z': np.nan, f'{point_name}.visibility': np.nan})
             else:
-                for i, landmark in enumerate(result.pose_world_landmarks[0]):
-                    point_name = MEDIAPIPE_POINTS[i]
-                    if landmark.visibility >= self.threshold_visibility:
-                        frame_data[f'{point_name}.x'] = landmark.x
-                        frame_data[f'{point_name}.y'] = landmark.y
-                        frame_data[f'{point_name}.z'] = landmark.z
-                        frame_data[f'{point_name}.visibility'] = landmark.visibility
-                    else:
-                        frame_data[f'{point_name}.x'] = np.nan
-                        frame_data[f'{point_name}.y'] = np.nan
-                        frame_data[f'{point_name}.z'] = np.nan
-                        frame_data[f'{point_name}.visibility'] = np.nan
+                for idx, point_name in TARGET_POINTS_3D.items():
+                    landmark = result.pose_world_landmarks[0][idx]
                     
-            frames.append(frame_data)
+                    if landmark.visibility >= self.threshold_visibility:
+                        frame_data_3d.update({f'{point_name}.x': landmark.x, f'{point_name}.y': landmark.y, f'{point_name}.z': landmark.z, f'{point_name}.visibility': landmark.visibility})
+                    else:
+                        frame_data_3d.update({f'{point_name}.x': np.nan, f'{point_name}.y': np.nan, f'{point_name}.z': np.nan, f'{point_name}.visibility': np.nan})
+
+            if not result.pose_landmarks:
+                for point in self.target_points_2d.keys():
+                    frame_data_2d.update({f'{point}.x': np.nan, f'{point}.y': np.nan, f'{point}.visibility': np.nan})
+            else:
+                for point_name, i in self.target_points_2d.items():
+                    landmark = result.pose_landmarks[0][i]
+                    if landmark.visibility >= self.threshold_visibility:
+                        frame_data_2d.update({f'{point_name}.x': landmark.x, f'{point_name}.y': landmark.y, f'{point_name}.visibility': landmark.visibility})
+                    else:
+                        frame_data_2d.update({f'{point_name}.x': np.nan, f'{point_name}.y': np.nan, f'{point_name}.visibility': np.nan})
+            
+            frames_2d.append(frame_data_2d)
+            frames_3d.append(frame_data_3d)
             frameNumber += 1
             
         loader.release()
-        self.df = pd.DataFrame(frames)
+        self.df_2d = pd.DataFrame(frames_2d)
+        self.df_3d = pd.DataFrame(frames_3d)
 
-    def get_keyMEDIAPIPE_POINTS(self) -> pd.DataFrame:
-        if self.df.empty:
-            raise ValueError("KeyMEDIAPIPE_POINTS not found. Run generate_dataframe() first.")
-        return self.df 
+    def get_keypoints_3d(self) -> pd.DataFrame:
+        if self.df_3d.empty:
+            raise ValueError("Keypoints not found. Run generate_dataframe() first.")
+        return self.df_3d 
+    
+    def get_keypoints_2d(self) -> pd.DataFrame:
+        if self.df_2d.empty:
+            raise ValueError("Keypoints not found. Run generate_dataframe() first.")
+        return self.df_2d
