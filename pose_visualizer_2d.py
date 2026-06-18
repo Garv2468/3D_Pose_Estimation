@@ -4,7 +4,7 @@ from constants import BONES
 
 def draw_skeleton(frame: np.ndarray, np_coords: dict, frame_num: int, width: int, height: int):
     img = frame
-    for bone_name, (joint1, joint2) in BONES.items():
+    for _, (joint1, joint2) in BONES.items():
         x1, y1 = np_coords[f"{joint1}.x"][frame_num], np_coords[f"{joint1}.y"][frame_num]
         x2, y2 = np_coords[f"{joint2}.x"][frame_num], np_coords[f"{joint2}.y"][frame_num]
         
