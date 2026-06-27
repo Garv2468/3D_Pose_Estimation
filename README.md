@@ -252,17 +252,17 @@ python run.py --input data/raw/my_video.mp4 --force
 ## Roadmap
 
 - [x] Architecture design
-- [ ] `camera_model.py`
-- [ ] `video_loader.py`
-- [ ] `pose_detector.py`
-- [ ] `keypoint_utils.py`
+- [x] `camera_model.py`
+- [x] `video_loader.py`
+- [x] `pose_detector.py`
+- [x] `keypoint_utils.py`
 - [ ] `scale_recovery.py`
-- [ ] `pose_visualizer_2d.py`
-- [ ] `bone_constraints.py`
-- [ ] `joint_angle_validator.py`
-- [ ] `physics_smoother.py`
+- [x] `pose_visualizer_2d.py`
+- [x] `bone_constraints.py`
+- [x] `joint_angle_validator.py`
+- [x] `physics_smoother.py`
 - [ ] `pose_visualizer_3d.py`
-- [ ] `exporter.py`
+- [x] `exporter.py`
 - [ ] `run.py`
 - [ ] End-to-end test on sample video
 
