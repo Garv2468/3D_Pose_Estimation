@@ -2,3 +2,5 @@ opencv-python
 mediapipe
 pandas
 numpy
+json
+scipy
